@@ -4,7 +4,7 @@ using System.Collections;
 using UnityEngine.TestTools;
 using UnityEngine;
 
-public class TDDTests
+public class TestCase
 {
     const float waitingTime = 0.1f;
 
