@@ -1,7 +1,7 @@
 using UnityEngine;
 using static UnityEngine.Mathf;
-using static UnityEngine.Quaternion;
 using static UnityEngine.Physics;
+using static UnityEngine.Quaternion;
 
 [RequireComponent(typeof(CapsuleCollider), typeof(Rigidbody))]
 sealed class PlayerController : MonoBehaviour
@@ -36,7 +36,7 @@ sealed class PlayerController : MonoBehaviour
     private const int zero = 0;
 
     private bool isGrounded;
-    private float radius;
+    private float groundCheckRadius;
 
     private Animator armsAnimator = null;
     private Camera playerCamera = null;
@@ -66,10 +66,10 @@ sealed class PlayerController : MonoBehaviour
 
     private void Start()
     {
-        radius = capsuleCollider.radius;
+        groundCheckRadius = capsuleCollider.radius;
 
-        rotationX = new SmoothRotation(RotationAxisX);
-        rotationY = new SmoothRotation(RotationAxisY);
+        rotationX = new SmoothRotation(zero);
+        rotationY = new SmoothRotation(zero);
         velocityX = new SmoothVelocity();
         velocityZ = new SmoothVelocity();
 
@@ -79,7 +79,7 @@ sealed class PlayerController : MonoBehaviour
 
     private void FixedUpdate()
     {
-        isGrounded = CheckSphere(groundCheck.position, radius, whatIsSurface);
+        isGrounded = CheckSphere(groundCheck.position, groundCheckRadius, whatIsSurface);
     }
 
     private void Update()
@@ -144,12 +144,12 @@ sealed class PlayerController : MonoBehaviour
     private void Movement()
     {
         Vector3 direction = new Vector3(input.Horizontal, zero, input.Vertical).normalized;
-        Vector3 velocity = direction * (input.Run ? runningSpeed : walkingSpeed) * Time.deltaTime;
+        Vector3 velocity = direction * (input.Run ? runningSpeed : walkingSpeed);
 
-        Vector3 smoothedSpeed = new Vector3(velocityX.SoftenSpeed(velocity.x, movementSmoothness), zero,
-            velocityZ.SoftenSpeed(velocity.z, movementSmoothness));
-        
-        transform.Translate(smoothedSpeed.x, zero, smoothedSpeed.z);        
+        Vector3 smoothedSpeed = new Vector3(velocityX.SpeedDamping(velocity.x, movementSmoothness), zero,
+                velocityZ.SpeedDamping(velocity.z, movementSmoothness)) * Time.deltaTime;
+
+        transform.Translate(smoothedSpeed.x, zero, smoothedSpeed.z);
     }
 
     /// <summary>
@@ -157,8 +157,8 @@ sealed class PlayerController : MonoBehaviour
     /// </summary>
     private void Rotation()
     {
-        float axisX = rotationX.SoftenRotationAngle(RotationAxisX, smoothRotation);
-        float axisY = rotationY.SoftenRotationAngle(RotationAxisY, smoothRotation);
+        float axisX = rotationX.DampRotationAngle(RotationAxisX, smoothRotation);
+        float axisY = rotationY.DampRotationAngle(RotationAxisY, smoothRotation);
 
         float limitedY = LimitVerticalRotation(axisY);
         rotationY.CurrentAngle = limitedY;
@@ -236,7 +236,13 @@ sealed class PlayerController : MonoBehaviour
 
         public SmoothRotation(float startAngle) => currentAngle = startAngle;
 
-        public float SoftenRotationAngle(float target, float smoothTime)
+        /// <summary>
+        /// Gradually changes an angle given in degrees towards a desired goal angle over time.
+        /// </summary>
+        /// <param name="target">The position we are trying to reach.</param>
+        /// <param name="smoothTime">Rotation smoothing time (in seconds).</param>
+        /// <returns>Returns the damped angle in degrees.</returns>
+        public float DampRotationAngle(float target, float smoothTime)
         {
             return currentAngle = SmoothDampAngle(currentAngle, target, ref currentAngularVelocity, smoothTime);
         }
@@ -246,7 +252,13 @@ sealed class PlayerController : MonoBehaviour
     {
         private float current, currentVelocity;
 
-        public float SoftenSpeed(float target, float smoothTime)
+        /// <summary>
+        /// Gradually softens the speed value over time.
+        /// </summary>
+        /// <param name="target">The target position that we want to achieve.</param>
+        /// <param name="smoothTime">Motion smoothing time (in seconds).</param>
+        /// <returns>Returns the damped velocity.</returns>
+        public float SpeedDamping(float target, float smoothTime)
         {
             return current = SmoothDamp(current, target, ref currentVelocity, smoothTime);
         }
