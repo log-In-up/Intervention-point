@@ -1,3 +1,4 @@
+using UnityEngine.UI;
 using UnityEngine;
 using static UnityEngine.Mathf;
 using static UnityEngine.Physics;
@@ -6,23 +7,21 @@ using static UnityEngine.Quaternion;
 namespace InterventionPoint
 {
     [RequireComponent(typeof(CapsuleCollider), typeof(Rigidbody))]
-    sealed public class PlayerController : MonoBehaviour
+    public sealed class PlayerController : MonoBehaviour
     {
         #region Parameters
         [Header("Game objects")]
         [SerializeField, Tooltip("A game object that contains the Animator component and is the visual part of the player.")]
         private GameObject arms = null;
-        [SerializeField, Tooltip("A game object that contains a Camera component.")] 
+        [SerializeField, Tooltip("A game object that contains a Camera component.")]
         private GameObject playerEyes = null;
-        [SerializeField, Tooltip("The game object representing the bullet prefab.")] 
-        private GameObject bulletPrefab = null;
-        [SerializeField, Tooltip("The game object representing the casing prefab.")] 
+        [SerializeField, Tooltip("The game object representing the casing prefab.")]
         private GameObject casingPrefab = null;
-        [SerializeField, Tooltip("The point from which the surface is checked.")] 
+        [SerializeField, Tooltip("The point from which the surface is checked.")]
         private Transform groundCheck = null;
-        [SerializeField, Tooltip("The point from which the bullet is fired.")] 
+        [SerializeField, Tooltip("The point from which the bullet is fired.")]
         private Transform bulletSpawnPoint = null;
-        [SerializeField, Tooltip("The point where the cartridge case is released from the weapon.")] 
+        [SerializeField, Tooltip("The point where the cartridge case is released from the weapon.")]
         private Transform casingSpawnPoint = null;
 
         [Header("Look settings")]
@@ -37,24 +36,31 @@ namespace InterventionPoint
         [SerializeField, Tooltip("Player walking speed (in m/s).")] private float walkingSpeed = 3.0f;
 
         [Header("Weapon settings")]
-        [SerializeField, Tooltip("Bullets fired per second.")] private float rateOfFire = 5.0f;
-        [SerializeField, Tooltip("The force applied to the bullet.")] private float bulletForce = 400.0f;
+        [SerializeField, Tooltip("Bullets fired per second.")] private float rateOfFire = 0.5f;
+        [SerializeField, Tooltip("")] private int weaponMagazineVolume = 30;
+        [SerializeField, Tooltip("The distance at which the weapon can hit.")] private float shootingDistance = 400.0f;
+
+        [Header("UI settings")]
+        [SerializeField, Tooltip("UI element represents current ammo and maximum ammo.")] private Text ammo = null;
 
         [Header("Other settings")]
         [SerializeField, Tooltip("Layer mask for interacting with the surface.")] private LayerMask whatIsSurface;
+        [SerializeField, Tooltip("Layer mask to ignore the player.")] private LayerMask whatIsPlayer;
         [SerializeField, Tooltip("The amount of force applied to the player when jumping (in Newtons).")]
         private float jumpForce = 5.0f;
 
-        [Header("Input manager settings"), SerializeField] private PlayerInput input;
+        [SerializeField, Header("Input manager settings")] private PlayerInput input;
+        [SerializeField, Header("Player animator parameters")] private AnimatorParameters animatorParameters;
 
-        private const bool freezeRotation = true, hided = false;
-        private const float angleLimitation = 0.01f, circle = 360.0f, unfoldedCorner = 180.0f;
+        private const bool freezeRotation = true, hided = false, notMoving = false;
+        private const float angleLimitation = 0.01f, circle = 360.0f, unfoldedCorner = 180.0f, middleOfViewport = 0.5f;
         private const int zero = 0, one = 1;
 
         private bool isGrounded;
-        private float groundCheckRadius, lastFired, fireRate;
+        private int currentAmmo, magazineVolume;
+        private float groundCheckRadius, nextShot;
 
-        private Animator armsAnimator = null;
+        private Animator animator = null;
         private Camera playerCamera = null;
         private CapsuleCollider capsuleCollider = null;
         private Rigidbody rigidbody3D = null;
@@ -72,7 +78,7 @@ namespace InterventionPoint
         #region MonoBehaviour API
         private void Awake()
         {
-            armsAnimator = arms.GetComponent<Animator>();
+            animator = arms.GetComponent<Animator>();
             playerCamera = playerEyes.GetComponent<Camera>();
             capsuleCollider = GetComponent<CapsuleCollider>();
             rigidbody3D = GetComponent<Rigidbody>();
@@ -92,7 +98,9 @@ namespace InterventionPoint
             Cursor.visible = hided;
             Cursor.lockState = CursorLockMode.Locked;
 
-            fireRate = one / rateOfFire;
+            magazineVolume = currentAmmo = weaponMagazineVolume;
+
+            ammo.text = $"{currentAmmo}/{magazineVolume}";
         }
 
         private void FixedUpdate()
@@ -106,7 +114,7 @@ namespace InterventionPoint
             Movement(playerInput);
 
             Rotation();
-            Shoot();
+            Shooting();
 
             if (input.Jump && isGrounded)
             {
@@ -116,17 +124,6 @@ namespace InterventionPoint
         #endregion        
 
         #region Custom methods
-        /// <summary>
-        /// The method responsible for creating the bullet.
-        /// </summary>
-        private void CreateBullet()
-        {
-            GameObject bullet = Instantiate(bulletPrefab, bulletSpawnPoint.position, bulletSpawnPoint.transform.rotation);
-            bullet.GetComponent<Rigidbody>().velocity = bullet.transform.forward * bulletForce;
-
-            Instantiate(casingPrefab, casingSpawnPoint.transform.position, casingSpawnPoint.transform.rotation);
-        }
-
         /// <summary>
         /// The method responsible for the player's jump.
         /// </summary>
@@ -157,6 +154,18 @@ namespace InterventionPoint
         public void Movement(Vector3 normalizedPlayerInput)
         {
             Vector3 velocity = normalizedPlayerInput * (input.Run ? runningSpeed : walkingSpeed);
+
+            // TODO: Need to redo
+            if (normalizedPlayerInput.magnitude > zero)
+            {
+                animator.SetBool(animatorParameters.run, input.Run);
+                animator.SetBool(animatorParameters.walk, !input.Run);
+            }
+            else
+            {
+                animator.SetBool(animatorParameters.run, notMoving);
+                animator.SetBool(animatorParameters.walk, notMoving);
+            }
 
             Vector3 smoothedSpeed = new Vector3(velocityX.SpeedDamping(velocity.x, movementSmoothness), zero,
                     velocityZ.SpeedDamping(velocity.z, movementSmoothness)) * Time.deltaTime;
@@ -204,23 +213,101 @@ namespace InterventionPoint
 
         /// <summary>
         /// This method is responsible for shooting.
-        /// </summary>
-        private void Shoot()
+        /// </summary>        
+        private void Shooting()
         {
-            if (input.Shot && Time.time - lastFired > fireRate)
-            {
-                lastFired = Time.time;
+            bool aiming = input.Aim;
+            animator.SetBool(animatorParameters.aim, aiming);
 
-                CreateBullet();
+            if (currentAmmo != zero)
+            {
+                if (input.Shot && Time.time > nextShot)
+                {
+                    nextShot = Time.time + rateOfFire;
+
+                    if (aiming)
+                    {
+                        animator.Play(animatorParameters.aimFire);
+                    }
+                    else
+                    {
+                        animator.Play(animatorParameters.fire);
+                    }
+
+                    Shot();
+                }
             }
+            else
+            {
+                Reload();
+            }
+        }
+
+
+        /// <summary>
+        /// The method responsible for reloading the weapon.
+        /// </summary>
+        private void Reload()
+        {
+            currentAmmo = magazineVolume;
+            ammo.text = $"{currentAmmo}/{magazineVolume}";
+        }
+
+        /// <summary>
+        /// The method responsible for creating the bullet.
+        /// </summary>
+        private void Shot()
+        {
+            Vector3 origin = playerCamera.ViewportToWorldPoint(new Vector3(middleOfViewport, middleOfViewport, zero));
+
+            currentAmmo -= one;
+            ammo.text = $"{currentAmmo}/{magazineVolume}";
+
+            //We shoot the ray from the Viewport and get the aiming point
+            if (Raycast(origin, playerCamera.transform.forward, out RaycastHit raycastHit, shootingDistance, whatIsPlayer))
+            {
+                //We send a ray from the barrel of the weapon to the aiming point
+                if (Raycast(bulletSpawnPoint.position, raycastHit.point, out RaycastHit hit))
+                {
+                    //Processing the hit
+                }
+            }
+
+            Instantiate(casingPrefab, casingSpawnPoint.transform.position, casingSpawnPoint.transform.rotation);
         }
         #endregion
 
         #region Nested classes
         [System.Serializable]
+        private class AnimatorParameters
+        {
+            #region Parameters
+            [Header("Parameters")]
+            [SerializeField, Tooltip("")]
+            internal string aim = "Aim";
+
+            [SerializeField, Tooltip("")]
+            internal string run = "Run";
+
+            [SerializeField, Tooltip("")]
+            internal string walk = "Walk";
+
+            [Header("Animation titles")]
+            [SerializeField, Tooltip("")]
+            internal string fire = "Fire";
+
+            [SerializeField, Tooltip("")]
+            internal string aimFire = "Aim Fire";
+            #endregion
+        }
+
+        [System.Serializable]
         private class PlayerInput
         {
             #region Parameters
+            [SerializeField, Tooltip("The name of the virtual button mapped to aim.")]
+            private string aim = "Fire2";
+
             [SerializeField, Tooltip("The axis responsible for the movement of the player to the left or right.")]
             private string horizontal = "Horizontal";
 
@@ -244,6 +331,11 @@ namespace InterventionPoint
             #endregion
 
             #region Properties
+            /// <summary>
+            /// The name of the virtual button mapped to aim.
+            /// </summary>
+            public bool Aim => Input.GetButton(aim);
+
             /// <summary>
             /// The name of the virtual button mapped to jump.
             /// </summary>
