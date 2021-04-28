@@ -1,12 +1,13 @@
-using UnityEngine.UI;
+using System.Collections;
 using UnityEngine;
+using UnityEngine.UI;
 using static UnityEngine.Mathf;
 using static UnityEngine.Physics;
 using static UnityEngine.Quaternion;
 
 namespace InterventionPoint
 {
-    [RequireComponent(typeof(CapsuleCollider), typeof(Rigidbody))]
+    [DisallowMultipleComponent, RequireComponent(typeof(AudioSource), typeof(CapsuleCollider), typeof(Rigidbody))]
     public sealed class PlayerController : MonoBehaviour
     {
         #region Parameters
@@ -17,6 +18,11 @@ namespace InterventionPoint
         private GameObject playerEyes = null;
         [SerializeField, Tooltip("The game object representing the casing prefab.")]
         private GameObject casingPrefab = null;
+        [SerializeField, Tooltip("The game object representing the shooting source.")]
+        private GameObject shotingAudioSource = null;
+        [SerializeField, Tooltip("The game object representing the reloading source.")]
+        private GameObject reloadingAudioSource = null;
+        [SerializeField] private GameObject bulletInMag = null;
         [SerializeField, Tooltip("The point from which the surface is checked.")]
         private Transform groundCheck = null;
         [SerializeField, Tooltip("The point from which the bullet is fired.")]
@@ -29,6 +35,7 @@ namespace InterventionPoint
         [SerializeField, Tooltip("The minimum vertical angle.")] private float minVerticalAngle = -90.0f;
         [SerializeField, Tooltip("Mouse sensitivity.")] private float mouseSensitivity = 7.0f;
         [SerializeField, Tooltip("Rotation smoothing time (in seconds).")] private float smoothRotation = 0.05f;
+        [SerializeField] private float aimingFOV = 30.0f;
 
         [Header("Movement settings")]
         [SerializeField, Tooltip("Motion smoothing time (in seconds).")] private float movementSmoothness = 0.125f;
@@ -36,33 +43,41 @@ namespace InterventionPoint
         [SerializeField, Tooltip("Player walking speed (in m/s).")] private float walkingSpeed = 3.0f;
 
         [Header("Weapon settings")]
-        [SerializeField, Tooltip("Bullets fired per second.")] private float rateOfFire = 0.5f;
+        [SerializeField, Tooltip("Bullets fired per second.")] private float rateOfFire = 0.2f;
         [SerializeField, Tooltip("")] private int weaponMagazineVolume = 30;
         [SerializeField, Tooltip("The distance at which the weapon can hit.")] private float shootingDistance = 400.0f;
+        [SerializeField] private float lightDuration = 0.02f;
+        [SerializeField] private float reloadOutOfAmmoTime = 3.0f;
+        [SerializeField] private float reloadAmmoLeftTime = 2.133f;
+        [SerializeField] private float showBulletDelay = 0.8f;
+        [SerializeField] private ParticleSystem spark = null;
+        [SerializeField] private ParticleSystem muzzleflash = null;
+        [SerializeField] private Light muzzleflashLight = null;
 
         [Header("UI settings")]
         [SerializeField, Tooltip("UI element represents current ammo and maximum ammo.")] private Text ammo = null;
 
         [Header("Other settings")]
-        [SerializeField, Tooltip("Layer mask for interacting with the surface.")] private LayerMask whatIsSurface;
-        [SerializeField, Tooltip("Layer mask to ignore the player.")] private LayerMask whatIsPlayer;
+        [SerializeField, Tooltip("Player animator parameters")] private AnimatorParameters animatorParameters;
+        [SerializeField, Tooltip("")] private AudioClips audioClips;
+        [SerializeField, Tooltip("Input manager settings")] private PlayerInput input;
+        [SerializeField] private LayerMask whatIsPlayer, whatIsSurface;
         [SerializeField, Tooltip("The amount of force applied to the player when jumping (in Newtons).")]
         private float jumpForce = 5.0f;
 
-        [SerializeField, Header("Input manager settings")] private PlayerInput input;
-        [SerializeField, Header("Player animator parameters")] private AnimatorParameters animatorParameters;
+        private const bool disable = false, enable = true, freezeRotation = true, hided = false, notMoving = false, notReloaded = true, reloaded = false;
+        private const float angleLimitation = 0.01f, circle = 360.0f, middleOfViewport = 0.5f, unfoldedCorner = 180.0f;
+        private const int one = 1, zero = 0;
 
-        private const bool freezeRotation = true, hided = false, notMoving = false;
-        private const float angleLimitation = 0.01f, circle = 360.0f, unfoldedCorner = 180.0f, middleOfViewport = 0.5f;
-        private const int zero = 0, one = 1;
-
-        private bool isGrounded;
+        private bool isGrounded, isReloading;
         private int currentAmmo, magazineVolume;
-        private float groundCheckRadius, nextShot;
+        private float groundCheckRadius, nextShot, standardFOV;
 
         private Animator animator = null;
+        private AudioSource playerAudioSource = null, reloadingSource = null, weaponSource = null;
         private Camera playerCamera = null;
         private CapsuleCollider capsuleCollider = null;
+        private Coroutine flashLightCoroutine = null, showBullet = null, weaponReload = null;
         private Rigidbody rigidbody3D = null;
 
         private SmoothRotation rotationX = null, rotationY = null;
@@ -79,11 +94,15 @@ namespace InterventionPoint
         private void Awake()
         {
             animator = arms.GetComponent<Animator>();
-            playerCamera = playerEyes.GetComponent<Camera>();
             capsuleCollider = GetComponent<CapsuleCollider>();
+            playerAudioSource = GetComponent<AudioSource>();
+            playerCamera = playerEyes.GetComponent<Camera>();
+            reloadingSource = reloadingAudioSource.GetComponent<AudioSource>();
             rigidbody3D = GetComponent<Rigidbody>();
+            weaponSource = shotingAudioSource.GetComponent<AudioSource>();
 
             rigidbody3D.freezeRotation = freezeRotation;
+            muzzleflashLight.enabled = disable;
         }
 
         private void Start()
@@ -98,7 +117,9 @@ namespace InterventionPoint
             Cursor.visible = hided;
             Cursor.lockState = CursorLockMode.Locked;
 
+            isReloading = reloaded;
             magazineVolume = currentAmmo = weaponMagazineVolume;
+            standardFOV = playerCamera.fieldOfView;
 
             ammo.text = $"{currentAmmo}/{magazineVolume}";
         }
@@ -111,10 +132,23 @@ namespace InterventionPoint
         private void Update()
         {
             Vector3 playerInput = new Vector3(input.Horizontal, zero, input.Vertical).normalized;
-            Movement(playerInput);
+            Walk(playerInput);
 
-            Rotation();
-            Shooting();
+            Vector3 gazeDirection = new Vector3(
+                rotationX.DampRotationAngle(RotationAxisX, smoothRotation),
+                rotationY.DampRotationAngle(RotationAxisY, smoothRotation),
+                zero);
+            Rotation(gazeDirection);
+
+            if (input.Reload)
+            {
+                ReloadWeapon();
+            }
+
+            if (!isReloading && !input.Run)
+            {
+                Shooting();
+            }
 
             if (input.Jump && isGrounded)
             {
@@ -123,20 +157,66 @@ namespace InterventionPoint
         }
         #endregion        
 
-        #region Custom methods
-        /// <summary>
-        /// The method responsible for the player's jump.
-        /// </summary>
+        #region Custom methods        
+        private void EmitEffects()
+        {
+            if (flashLightCoroutine != null)
+            {
+                StopCoroutine(flashLightCoroutine);
+            }
+            flashLightCoroutine = StartCoroutine(MuzzleFlashLight(lightDuration));
+
+            spark.Emit(one);
+            muzzleflash.Emit(one);
+        }
+
+        private void EmitWalkingSound()
+        {
+            if (isGrounded)
+            {
+                playerAudioSource.clip = input.Run ? audioClips.running : audioClips.walking;
+                if (!playerAudioSource.isPlaying)
+                {
+                    playerAudioSource.Play();
+                }
+            }
+            else
+            {
+                playerAudioSource.Pause();
+            }
+        }
+        
+        private void Fire()
+        {
+            Vector3 origin = playerCamera.ViewportToWorldPoint(new Vector3(middleOfViewport, middleOfViewport, zero));
+
+            currentAmmo -= one;
+
+            weaponSource.clip = audioClips.shoot;
+            weaponSource.Play();
+
+            ammo.text = $"{currentAmmo}/{magazineVolume}";
+
+            //We shoot the ray from the Viewport and get the aiming point
+            if (Raycast(origin, playerCamera.transform.forward, out RaycastHit raycastHit, shootingDistance, whatIsPlayer))
+            {
+                //We send a ray from the barrel of the weapon to the aiming point
+                if (Raycast(bulletSpawnPoint.position, raycastHit.point, out RaycastHit hit))
+                {
+                    //Processing the hit
+                }
+            }
+
+            Instantiate(casingPrefab, casingSpawnPoint.transform.position, casingSpawnPoint.transform.rotation);
+
+            EmitEffects();
+        }
+        
         private void Jump()
         {
             rigidbody3D.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
         }
-
-        /// <summary>
-        /// Constrains the vertical angle between <see cref="minVerticalAngle"/> and <see cref="maxVerticalAngle"/>.
-        /// </summary>
-        /// <param name="axisY">Vertical axis.</param>
-        /// <returns>Returns the clamped vertical angle between <see cref="minVerticalAngle"/> and <see cref="maxVerticalAngle"/>.</returns>
+        
         private float LimitVerticalRotation(float axisY)
         {
             float currentAngle = NormalizeAngle(arms.transform.eulerAngles.x);
@@ -147,37 +227,13 @@ namespace InterventionPoint
             return Clamp(axisY, minimumY + angleLimitation, maximumY - angleLimitation);
         }
 
-        /// <summary>
-        /// The method responsible for the movement of the player.
-        /// </summary>
-        /// <param name="normalizedPlayerInput">Takes the player's normalized input motion vector.</param>
-        public void Movement(Vector3 normalizedPlayerInput)
+        private IEnumerator MuzzleFlashLight(float time)
         {
-            Vector3 velocity = normalizedPlayerInput * (input.Run ? runningSpeed : walkingSpeed);
-
-            // TODO: Need to redo
-            if (normalizedPlayerInput.magnitude > zero)
-            {
-                animator.SetBool(animatorParameters.run, input.Run);
-                animator.SetBool(animatorParameters.walk, !input.Run);
-            }
-            else
-            {
-                animator.SetBool(animatorParameters.run, notMoving);
-                animator.SetBool(animatorParameters.walk, notMoving);
-            }
-
-            Vector3 smoothedSpeed = new Vector3(velocityX.SpeedDamping(velocity.x, movementSmoothness), zero,
-                    velocityZ.SpeedDamping(velocity.z, movementSmoothness)) * Time.deltaTime;
-
-            transform.Translate(smoothedSpeed.x, zero, smoothedSpeed.z);
+            muzzleflashLight.enabled = enable;
+            yield return new WaitForSeconds(time);
+            muzzleflashLight.enabled = disable;
         }
-
-        /// <summary>
-        /// Normalizes the angle between <see cref="minVerticalAngle"/> and <see cref="maxVerticalAngle"/>.
-        /// </summary>
-        /// <param name="angle">Gets the angle in degrees.</param>
-        /// <returns>Returns the angle in degrees.</returns>
+        
         private float NormalizeAngle(float angle)
         {
             while (angle > unfoldedCorner)
@@ -192,31 +248,53 @@ namespace InterventionPoint
 
             return angle;
         }
-
-        /// <summary>
-        /// The method responsible for rotating the player.
-        /// </summary>
-        private void Rotation()
+        
+        private IEnumerator Reload(float reloadTime)
         {
-            float axisX = rotationX.DampRotationAngle(RotationAxisX, smoothRotation);
-            float axisY = rotationY.DampRotationAngle(RotationAxisY, smoothRotation);
+            yield return new WaitForSeconds(reloadTime);
 
-            float limitedY = LimitVerticalRotation(axisY);
+            isReloading = reloaded;
+
+            currentAmmo = magazineVolume;
+            ammo.text = $"{currentAmmo}/{magazineVolume}";
+        }
+        
+        private void ReloadWeapon()
+        {
+            if (currentAmmo != zero)
+            {
+                reloadingSource.clip = audioClips.reloadAmmoLeft;
+                animator.Play(animatorParameters.reloadAmmoLeft, zero, zero);
+
+                StartReload(reloadAmmoLeftTime);
+            }
+            else
+            {
+                reloadingSource.clip = audioClips.reloadOutOfAmmo;
+                animator.Play(animatorParameters.reloadOutOfAmmo, zero, zero);
+
+                StartReload(reloadOutOfAmmoTime);
+            }
+            reloadingSource.Play();
+        }
+        
+        private void Rotation(Vector3 rotation)
+        {
+            float limitedY = LimitVerticalRotation(rotation.y);
             rotationY.CurrentAngle = limitedY;
 
             Vector3 worldVector = arms.transform.InverseTransformDirection(Vector3.up);
-            Quaternion playerRotation = arms.transform.rotation * AngleAxis(axisX, worldVector) * AngleAxis(limitedY, Vector3.left);
+            Quaternion playerRotation = arms.transform.rotation * AngleAxis(rotation.x, worldVector) * AngleAxis(limitedY, Vector3.left);
 
             transform.eulerAngles = new Vector3(zero, playerRotation.eulerAngles.y, zero);
             arms.transform.rotation = playerRotation;
         }
-
-        /// <summary>
-        /// This method is responsible for shooting.
-        /// </summary>        
+        
         private void Shooting()
         {
             bool aiming = input.Aim;
+            playerCamera.fieldOfView = aiming ? aimingFOV : standardFOV;
+
             animator.SetBool(animatorParameters.aim, aiming);
 
             if (currentAmmo != zero)
@@ -227,77 +305,114 @@ namespace InterventionPoint
 
                     if (aiming)
                     {
-                        animator.Play(animatorParameters.aimFire);
+                        animator.Play(animatorParameters.aimFire, zero, zero);
+
+                        weaponSource.clip = audioClips.aiming;
+                        weaponSource.Play();
                     }
                     else
                     {
-                        animator.Play(animatorParameters.fire);
+                        animator.Play(animatorParameters.fire, zero, zero);
                     }
-
-                    Shot();
+                    Fire();
                 }
             }
             else
             {
-                Reload();
+                bulletInMag.SetActive(disable);
             }
         }
-
-
-        /// <summary>
-        /// The method responsible for reloading the weapon.
-        /// </summary>
-        private void Reload()
+        
+        private IEnumerator ShowBulletsInMag(float time)
         {
-            currentAmmo = magazineVolume;
-            ammo.text = $"{currentAmmo}/{magazineVolume}";
+            yield return new WaitForSeconds(time);
+
+            bulletInMag.SetActive(enable);
         }
-
-        /// <summary>
-        /// The method responsible for creating the bullet.
-        /// </summary>
-        private void Shot()
+        
+        private void StartReload(float time)
         {
-            Vector3 origin = playerCamera.ViewportToWorldPoint(new Vector3(middleOfViewport, middleOfViewport, zero));
-
-            currentAmmo -= one;
-            ammo.text = $"{currentAmmo}/{magazineVolume}";
-
-            //We shoot the ray from the Viewport and get the aiming point
-            if (Raycast(origin, playerCamera.transform.forward, out RaycastHit raycastHit, shootingDistance, whatIsPlayer))
+            if (currentAmmo == zero)
             {
-                //We send a ray from the barrel of the weapon to the aiming point
-                if (Raycast(bulletSpawnPoint.position, raycastHit.point, out RaycastHit hit))
+                if (showBullet != null)
                 {
-                    //Processing the hit
+                    StopCoroutine(showBullet);
                 }
+                showBullet = StartCoroutine(ShowBulletsInMag(showBulletDelay));
             }
 
-            Instantiate(casingPrefab, casingSpawnPoint.transform.position, casingSpawnPoint.transform.rotation);
+            if (weaponReload != null)
+            {
+                StopCoroutine(weaponReload);
+            }
+            isReloading = notReloaded;
+            weaponReload = StartCoroutine(Reload(time));
+        }
+        
+        public void Walk(Vector3 normalizedPlayerInput)
+        {
+            Vector3 velocity = normalizedPlayerInput * (input.Run ? runningSpeed : walkingSpeed);
+
+            if (normalizedPlayerInput.magnitude > zero)
+            {
+                animator.SetBool(animatorParameters.run, input.Run);
+                animator.SetBool(animatorParameters.walk, !input.Run);
+
+                EmitWalkingSound();
+            }
+            else
+            {
+                animator.SetBool(animatorParameters.run, notMoving);
+                animator.SetBool(animatorParameters.walk, notMoving);
+
+                playerAudioSource.Pause();
+            }
+
+            Vector3 smoothedSpeed = new Vector3(velocityX.SpeedDamping(velocity.x, movementSmoothness), zero,
+                    velocityZ.SpeedDamping(velocity.z, movementSmoothness)) * Time.deltaTime;
+
+            transform.Translate(smoothedSpeed.x, zero, smoothedSpeed.z);
         }
         #endregion
 
         #region Nested classes
         [System.Serializable]
+        private class AudioClips
+        {
+            [SerializeField] internal AudioClip aiming = null;
+            [SerializeField] internal AudioClip reloadOutOfAmmo = null;
+            [SerializeField] internal AudioClip reloadAmmoLeft = null;
+            [SerializeField] internal AudioClip running = null;
+            [SerializeField] internal AudioClip shoot = null;
+            [SerializeField] internal AudioClip walking = null;
+        }
+
+        [System.Serializable]
         private class AnimatorParameters
         {
             #region Parameters
             [Header("Parameters")]
-            [SerializeField, Tooltip("")]
+            [SerializeField, Tooltip("This parameter of the animator is responsible for aiming.")]
             internal string aim = "Aim";
 
-            [SerializeField, Tooltip("")]
+            [SerializeField, Tooltip("This parameter of the animator is responsible for running.")]
             internal string run = "Run";
 
-            [SerializeField, Tooltip("")]
+            [SerializeField, Tooltip("This parameter of the animator is responsible for walking.")]
             internal string walk = "Walk";
 
             [Header("Animation titles")]
-            [SerializeField, Tooltip("")]
+            [SerializeField, Tooltip("The name of the state of the animator responsible for shooting without aiming.")]
             internal string fire = "Fire";
 
-            [SerializeField, Tooltip("")]
+            [SerializeField, Tooltip("The name of the state of the animator responsible for aiming firing.")]
             internal string aimFire = "Aim Fire";
+
+            [SerializeField, Tooltip("")]
+            internal string reloadOutOfAmmo = "Reload Out Of Ammo";
+
+            [SerializeField, Tooltip("")]
+            internal string reloadAmmoLeft = "Reload Ammo Left";
             #endregion
         }
 
@@ -307,6 +422,9 @@ namespace InterventionPoint
             #region Parameters
             [SerializeField, Tooltip("The name of the virtual button mapped to aim.")]
             private string aim = "Fire2";
+
+            [SerializeField, Tooltip("The name of the virtual button mapped to weapon reload.")]
+            private string reload = "Reload";
 
             [SerializeField, Tooltip("The axis responsible for the movement of the player to the left or right.")]
             private string horizontal = "Horizontal";
@@ -331,44 +449,15 @@ namespace InterventionPoint
             #endregion
 
             #region Properties
-            /// <summary>
-            /// The name of the virtual button mapped to aim.
-            /// </summary>
             public bool Aim => Input.GetButton(aim);
-
-            /// <summary>
-            /// The name of the virtual button mapped to jump.
-            /// </summary>
+            public bool Reload => Input.GetButton(reload);
             public bool Jump => Input.GetButtonDown(jump);
-
-            /// <summary>
-            /// The button responsible for accelerating the movement of the player.
-            /// </summary>
             public bool Run => Input.GetButton(run);
-
-            /// <summary>
-            /// The name of the virtual button mapped to fire.
-            /// </summary>
             public bool Shot => Input.GetButton(fire);
 
-            /// <summary>
-            /// The axis responsible for the movement of the player to the left or right.
-            /// </summary>
             public float Horizontal => Input.GetAxisRaw(horizontal);
-
-            /// <summary>
-            /// The name of the virtual axis mapped to rotate the camera around the X axis.
-            /// </summary>
             public float RotateX => Input.GetAxisRaw(rotationAxisX);
-
-            /// <summary>
-            /// The name of the virtual axis mapped to rotate the camera around the Y axis.
-            /// </summary>
             public float RotateY => Input.GetAxisRaw(rotationAxisY);
-
-            /// <summary>
-            /// The axis responsible for the movement of the player up or down.
-            /// </summary>
             public float Vertical => Input.GetAxisRaw(vertical);
             #endregion
         }
@@ -381,12 +470,6 @@ namespace InterventionPoint
 
             public SmoothRotation(float startAngle) => currentAngle = startAngle;
 
-            /// <summary>
-            /// Gradually changes an angle given in degrees towards a desired goal angle over time.
-            /// </summary>
-            /// <param name="target">The position we are trying to reach.</param>
-            /// <param name="smoothTime">Rotation smoothing time (in seconds).</param>
-            /// <returns>Returns the damped angle in degrees.</returns>
             public float DampRotationAngle(float target, float smoothTime)
             {
                 return currentAngle = SmoothDampAngle(currentAngle, target, ref currentAngularVelocity, smoothTime);
@@ -397,12 +480,6 @@ namespace InterventionPoint
         {
             private float current, currentVelocity;
 
-            /// <summary>
-            /// Gradually softens the speed value over time.
-            /// </summary>
-            /// <param name="target">The target position that we want to achieve.</param>
-            /// <param name="smoothTime">Motion smoothing time (in seconds).</param>
-            /// <returns>Returns the damped velocity.</returns>
             public float SpeedDamping(float target, float smoothTime)
             {
                 return current = SmoothDamp(current, target, ref currentVelocity, smoothTime);

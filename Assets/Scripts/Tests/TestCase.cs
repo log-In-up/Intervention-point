@@ -36,7 +36,7 @@ namespace InterventionPoint
         [UnityTest]
         public IEnumerator PlayerMoveForward()
         {
-            player.Movement(new Vector3(zero, zero, one).normalized);
+            player.Walk(new Vector3(zero, zero, one).normalized);
 
             yield return new WaitForSeconds(waitingTime);
 
@@ -46,7 +46,7 @@ namespace InterventionPoint
         [UnityTest]
         public IEnumerator PlayerMoveBack()
         {
-            player.Movement(new Vector3(zero, zero, -one).normalized);
+            player.Walk(new Vector3(zero, zero, -one).normalized);
 
             yield return new WaitForSeconds(waitingTime);
 
@@ -56,7 +56,7 @@ namespace InterventionPoint
         [UnityTest]
         public IEnumerator PlayerMoveOnLeft()
         {
-            player.Movement(new Vector3(-one, zero, zero).normalized);
+            player.Walk(new Vector3(-one, zero, zero).normalized);
 
             yield return new WaitForSeconds(waitingTime);
 
@@ -66,7 +66,7 @@ namespace InterventionPoint
         [UnityTest]
         public IEnumerator PlayerMoveOnRight()
         {
-            player.Movement(new Vector3(one, zero, zero).normalized);
+            player.Walk(new Vector3(one, zero, zero).normalized);
 
             yield return new WaitForSeconds(waitingTime);
 

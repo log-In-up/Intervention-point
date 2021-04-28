@@ -314,7 +314,7 @@ ModelImporter:
     second: knife
   - first:
       74: 7400000
-    second: aim_fire@assault_rifle_01
+    second: aim_fire
   - first:
       74: 7400002
     second: aim_fire_pose@assault_rifle_01
@@ -359,7 +359,7 @@ ModelImporter:
     second: aim_in_scope_04@assault_rifle_01
   - first:
       74: 7400030
-    second: aim_out@assault_rifle_01
+    second: aim_out
   - first:
       74: 7400032
     second: aim_out_scope_01@assault_rifle_01
@@ -374,16 +374,16 @@ ModelImporter:
     second: aim_out_scope_04@assault_rifle_01
   - first:
       74: 7400040
-    second: fire@assault_rifle_01
+    second: fire
   - first:
       74: 7400042
-    second: grenade_throw@assault_rifle_01
+    second: grenade_throw
   - first:
       74: 7400044
-    second: holster_weapon@assault_rifle_01
+    second: holster_weapon
   - first:
       74: 7400046
-    second: idle@assault_rifle_01
+    second: idle
   - first:
       74: 7400048
     second: inspect_weapon@assault_rifle_01
@@ -395,7 +395,7 @@ ModelImporter:
     second: knife_attack_2@assault_rifle_01
   - first:
       74: 7400054
-    second: reload_ammo_left@assault_rifle_01
+    second: reload_ammo_left
   - first:
       74: 7400056
     second: reload_out_of_ammo@assault_rifle_01
@@ -444,6 +444,33 @@ ModelImporter:
   - first:
       137: 13700020
     second: silencer
+  - first:
+      74: -6307210117130669738
+    second: aim_fire_pose
+  - first:
+      74: -1766910217425130633
+    second: aim_in
+  - first:
+      74: -194982798443938637
+    second: inspect_weapon
+  - first:
+      74: -2260067587842406740
+    second: knife_attack_1
+  - first:
+      74: 4043883788251108617
+    second: knife_attack_2
+  - first:
+      74: -5355542639724378693
+    second: reload_out_of_ammo
+  - first:
+      74: 6200578666267062213
+    second: run
+  - first:
+      74: 4789689026357239666
+    second: take_out_weapon
+  - first:
+      74: -3419257869308726280
+    second: walk
   externalObjects: {}
   materials:
     materialImportMode: 1
@@ -473,7 +500,7 @@ ModelImporter:
     extraUserProperties: []
     clipAnimations:
     - serializedVersion: 16
-      name: aim_fire@assault_rifle_01
+      name: aim_fire
       takeName: Armature|aim_fire@assault_rifle_01
       internalID: 0
       firstFrame: 1
@@ -502,7 +529,7 @@ ModelImporter:
       maskSource: {instanceID: 0}
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
-      name: aim_fire_pose@assault_rifle_01
+      name: aim_fire_pose
       takeName: Armature|aim_fire_pose@assault_rifle_01
       internalID: 0
       firstFrame: 0
@@ -531,7 +558,7 @@ ModelImporter:
       maskSource: {instanceID: 0}
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
-      name: aim_in@assault_rifle_01
+      name: aim_in
       takeName: Armature|aim_in@assault_rifle_01
       internalID: 0
       firstFrame: 1
@@ -560,7 +587,7 @@ ModelImporter:
       maskSource: {instanceID: 0}
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
-      name: aim_out@assault_rifle_01
+      name: aim_out
       takeName: Armature|aim_out@assault_rifle_01
       internalID: 0
       firstFrame: 1
@@ -589,7 +616,7 @@ ModelImporter:
       maskSource: {instanceID: 0}
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
-      name: fire@assault_rifle_01
+      name: fire
       takeName: Armature|fire@assault_rifle_01
       internalID: 0
       firstFrame: 1
@@ -618,7 +645,7 @@ ModelImporter:
       maskSource: {instanceID: 0}
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
-      name: grenade_throw@assault_rifle_01
+      name: grenade_throw
       takeName: Armature|grenade_throw@assault_rifle_01
       internalID: 0
       firstFrame: 1
@@ -647,7 +674,7 @@ ModelImporter:
       maskSource: {instanceID: 0}
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
-      name: holster_weapon@assault_rifle_01
+      name: holster_weapon
       takeName: Armature|holster_weapon@assault_rifle_01
       internalID: 0
       firstFrame: 1
@@ -676,7 +703,7 @@ ModelImporter:
       maskSource: {instanceID: 0}
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
-      name: idle@assault_rifle_01
+      name: idle
       takeName: Armature|_idle@assault_rifle_01
       internalID: 0
       firstFrame: 1
@@ -705,7 +732,7 @@ ModelImporter:
       maskSource: {instanceID: 0}
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
-      name: inspect_weapon@assault_rifle_01
+      name: inspect_weapon
       takeName: Armature|inspect_weapon@assault_rifle_01
       internalID: 0
       firstFrame: 1
@@ -734,7 +761,7 @@ ModelImporter:
       maskSource: {instanceID: 0}
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
-      name: knife_attack_1@assault_rifle_01
+      name: knife_attack_1
       takeName: Armature|knife_attack_1@assault_rifle_01
       internalID: 0
       firstFrame: 1
@@ -763,7 +790,7 @@ ModelImporter:
       maskSource: {instanceID: 0}
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
-      name: knife_attack_2@assault_rifle_01
+      name: knife_attack_2
       takeName: Armature|knife_attack_2@assault_rifle_01
       internalID: 0
       firstFrame: 1
@@ -792,7 +819,7 @@ ModelImporter:
       maskSource: {instanceID: 0}
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
-      name: reload_ammo_left@assault_rifle_01
+      name: reload_ammo_left
       takeName: Armature|reload_ammo_left@assault_rifle_01
       internalID: 0
       firstFrame: 1
@@ -821,7 +848,7 @@ ModelImporter:
       maskSource: {instanceID: 0}
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
-      name: reload_out_of_ammo@assault_rifle_01
+      name: reload_out_of_ammo
       takeName: Armature|reload_out_of_ammo@assault_rifle_01
       internalID: 0
       firstFrame: 1
@@ -850,7 +877,7 @@ ModelImporter:
       maskSource: {instanceID: 0}
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
-      name: run@assault_rifle_01
+      name: run
       takeName: Armature|run@assault_rifle_01
       internalID: 0
       firstFrame: 1
@@ -879,7 +906,7 @@ ModelImporter:
       maskSource: {instanceID: 0}
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
-      name: take_out_weapon@assault_rifle_01
+      name: take_out_weapon
       takeName: Armature|take_out_weapon@assault_rifle_01
       internalID: 0
       firstFrame: 1
@@ -908,7 +935,7 @@ ModelImporter:
       maskSource: {instanceID: 0}
       additiveReferencePoseFrame: 0
     - serializedVersion: 16
-      name: walk@assault_rifle_01
+      name: walk
       takeName: Armature|walk@assault_rifle_01
       internalID: 0
       firstFrame: 0
