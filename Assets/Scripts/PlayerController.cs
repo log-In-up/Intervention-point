@@ -140,8 +140,6 @@ namespace InterventionPoint
             return Clamp(axisY, minimumY + angleLimitation, maximumY - angleLimitation);
         }
 
-
-
         private float NormalizeAngle(float angle)
         {
             while (angle > unfoldedCorner)
