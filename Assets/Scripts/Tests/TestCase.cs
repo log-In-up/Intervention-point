@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace InterventionPoint
 {
-    public class TestCase
+    sealed class TestCase
     {
         #region Parameters
         private const float waitingTime = 0.1f, startingPointHeight = 1.3f;

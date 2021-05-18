@@ -6,7 +6,7 @@ using static UnityEngine.Physics;
 namespace InterventionPoint
 {
     [DisallowMultipleComponent, RequireComponent(typeof(Animator))]
-    public class Shooting : MonoBehaviour
+    sealed class Shooting : MonoBehaviour
     {
         #region Parameters
         [Header("Audio sources")]

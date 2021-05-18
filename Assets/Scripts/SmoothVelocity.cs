@@ -2,7 +2,7 @@ using static UnityEngine.Mathf;
 
 namespace InterventionPoint
 {
-    public class SmoothVelocity
+    sealed class SmoothVelocity
     {
         private float current, currentVelocity;
 

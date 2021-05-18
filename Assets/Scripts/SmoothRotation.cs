@@ -2,7 +2,7 @@ using static UnityEngine.Mathf;
 
 namespace InterventionPoint
 {
-    public class SmoothRotation
+    sealed class SmoothRotation
     {
         private float currentAngle, currentAngularVelocity;
 

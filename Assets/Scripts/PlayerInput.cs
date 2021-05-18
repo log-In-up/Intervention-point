@@ -2,7 +2,8 @@ using UnityEngine;
 
 namespace InterventionPoint
 {
-    public class PlayerInput : MonoBehaviour
+    [DisallowMultipleComponent]
+    sealed class PlayerInput : MonoBehaviour
     {
         #region Parameters
         [SerializeField, Tooltip("The name of the virtual button mapped to aim.")]

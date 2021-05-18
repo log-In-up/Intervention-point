@@ -3,7 +3,8 @@ using UnityEngine;
 
 namespace InterventionPoint
 {
-    public class PlayerAnimatorParameters : MonoBehaviour
+    [DisallowMultipleComponent]
+    sealed class PlayerAnimatorParameters : MonoBehaviour
     {
         #region Parameters
         [Header("Parameters")]
