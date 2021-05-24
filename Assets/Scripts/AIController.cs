@@ -1,7 +1,8 @@
 using System.Collections;
-using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine;
 using static UnityEngine.Physics;
+using static UnityEngine.Vector3;
 
 namespace InterventionPoint
 {
@@ -11,16 +12,17 @@ namespace InterventionPoint
         #region Parameters
         [SerializeField] Transform[] patrollingPoints = null;
         [SerializeField] float idleTime = 5.0f, remainingDistanceToPoint = 0.5f, viewRadius = 30.0f;
-        [SerializeField, Range(0.0f, 360.0f)] private float viewAngle = 60.0f;
+        [SerializeField, Range(0.0f, 180.0f)] private float horizontalViewAngle = 60.0f, verticalViewAngle = 50.0f;
         [SerializeField] LayerMask whatIsPlayer, whatIsObstacle;
 
-        private const int startingIndex = 0, indexIncrementor = 1, zero = 0, two = 2;
+        private const int startingIndex = 0, zero = 0, two = 2;
 
         private enum AIState { Chaising, Dead, Idle, Patrolling }
         AIState currentState = AIState.Idle;
         private int currentPatrolIndex;
 
         private Coroutine idle = null;
+        private Vector3 lastPlayerPosition;
         private NavMeshAgent navAgent = null;
         #endregion
 
@@ -39,8 +41,27 @@ namespace InterventionPoint
 
         private void Update()
         {
-            Debug.Log(PlayerInFieldOfView(viewRadius, viewAngle, whatIsPlayer, whatIsObstacle));
+            Debug.Log(currentState);
             UpdateCurrentState();
+        }
+
+        private void OnDrawGizmos()
+        {
+            Gizmos.color = Color.black;
+            Gizmos.DrawRay(transform.position, transform.forward * viewRadius);
+
+            Gizmos.color = Color.blue;
+            Gizmos.DrawWireSphere(transform.position, viewRadius);
+
+            Vector3 angleAxis = Quaternion.AngleAxis(horizontalViewAngle / two, transform.up) * transform.forward * viewRadius;
+            Vector3 angleAxis1 = Quaternion.AngleAxis(-horizontalViewAngle / two, transform.up) * transform.forward * viewRadius;
+            Vector3 angleAxis2 = Quaternion.AngleAxis(verticalViewAngle / two, transform.right) * transform.forward * viewRadius;
+            Vector3 angleAxis3 = Quaternion.AngleAxis(-verticalViewAngle / two, transform.right) * transform.forward * viewRadius;
+
+            Gizmos.DrawRay(transform.position, angleAxis);
+            Gizmos.DrawRay(transform.position, angleAxis1);
+            Gizmos.DrawRay(transform.position, angleAxis3);
+            Gizmos.DrawRay(transform.position, angleAxis2);
         }
         #endregion
 
@@ -53,7 +74,22 @@ namespace InterventionPoint
 
         private void UpdateChaisingState()
         {
+            if (!PlayerInFieldOfView(viewRadius, horizontalViewAngle, verticalViewAngle, whatIsPlayer, whatIsObstacle))
+            {
+                if (!navAgent.pathPending)
+                {
+                    if (navAgent.remainingDistance <= remainingDistanceToPoint)
+                    {
+                        navAgent.SetDestination(lastPlayerPosition);
+                    }
+                    else
+                    {
+                        SwitchState(AIState.Idle);
+                    }
+                }
+            }
 
+            transform.LookAt(lastPlayerPosition);
         }
 
         private void ExitChaisingState()
@@ -87,7 +123,10 @@ namespace InterventionPoint
 
         private void UpdateIdleState()
         {
-            
+            if (PlayerInFieldOfView(viewRadius, horizontalViewAngle, verticalViewAngle, whatIsPlayer, whatIsObstacle))
+            {
+                SwitchState(AIState.Chaising);
+            }
         }
 
         private void ExitIdleState()
@@ -107,15 +146,17 @@ namespace InterventionPoint
 
         private void UpdatePatrollingState()
         {
-            if (!navAgent.pathPending && navAgent.remainingDistance <= remainingDistanceToPoint)
+            if (PlayerInFieldOfView(viewRadius, horizontalViewAngle, verticalViewAngle, whatIsPlayer, whatIsObstacle))
             {
-                MoveToNextPoint();
+                SwitchState(AIState.Chaising);
             }
+
+            MoveToNextPoint();
         }
 
         private void ExitPatrollingState()
         {
-
+            navAgent.destination = transform.position;
         }
         #endregion
         #endregion
@@ -123,29 +164,37 @@ namespace InterventionPoint
         #region Custom methods
         private void MoveToNextPoint()
         {
-            navAgent.destination = patrollingPoints[currentPatrolIndex].position;
-            currentPatrolIndex = (currentPatrolIndex + indexIncrementor) % patrollingPoints.Length;
+            if (!navAgent.pathPending && navAgent.remainingDistance <= remainingDistanceToPoint)
+            {
+                navAgent.destination = patrollingPoints[currentPatrolIndex].position;
+                currentPatrolIndex = ++currentPatrolIndex % patrollingPoints.Length;
+            }
         }
 
-        private void UpdateCurrentState()
+        private bool PlayerInFieldOfView(float radius, float horizontalAngle, float verticalAngle, LayerMask target, LayerMask obstacle)
         {
-            switch (currentState)
+            Collider[] colliders = OverlapSphere(transform.position, radius, target);
+
+            for (int i = zero; i < colliders.Length; i++)
             {
-                case AIState.Chaising:
-                    UpdateChaisingState();
-                    break;
-                case AIState.Dead:
-                    UpdateDeadState();
-                    break;
-                case AIState.Idle:
-                    UpdateIdleState();
-                    break;
-                case AIState.Patrolling:
-                    UpdatePatrollingState();
-                    break;
-                default:
-                    break;
+                Vector3 targetPosition = colliders[i].transform.position;
+                Vector3 directionToTarget = (targetPosition - transform.position).normalized;
+
+                float angleY = Angle(transform.forward, new Vector3(zero, directionToTarget.y, directionToTarget.z));
+                float angleX = Angle(transform.forward, new Vector3(directionToTarget.x, zero, directionToTarget.z));
+
+                if (angleY < horizontalAngle && angleX < verticalAngle)
+                {
+                    float distance = Distance(transform.position, colliders[i].transform.position);
+
+                    if (!Raycast(transform.position, directionToTarget, distance, obstacle))
+                    {
+                        lastPlayerPosition = targetPosition;
+                        return true;
+                    }
+                }
             }
+            return false;
         }
 
         private void SwitchState(AIState state)
@@ -191,25 +240,24 @@ namespace InterventionPoint
             SwitchState(state);
         }
 
-
-        private bool PlayerInFieldOfView(float radius, float angle, LayerMask target, LayerMask obstacle)
+        private void UpdateCurrentState()
         {
-            Collider[] colliders = OverlapSphere(transform.position, radius, target);
-
-            for (int i = zero; i < colliders.Length; i++)
+            switch (currentState)
             {
-                Vector3 directionToTarget = (colliders[i].transform.position - transform.position).normalized;
-                if (Vector3.Angle(transform.forward, directionToTarget) < angle / two)
-                {
-                    float distance = Vector3.Distance(transform.position, colliders[i].transform.position);
-
-                    return !Raycast(transform.position, directionToTarget, distance, obstacle);
-                }
+                case AIState.Chaising:
+                    UpdateChaisingState();
+                    break;
+                case AIState.Dead:
+                    UpdateDeadState();
+                    break;
+                case AIState.Idle:
+                    UpdateIdleState();
+                    break;
+                case AIState.Patrolling:
+                    UpdatePatrollingState();
+                    break;
             }
-
-            return false;
         }
-
         #endregion
     }
 }

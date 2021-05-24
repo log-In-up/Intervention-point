@@ -349,7 +349,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 321134221}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -5, y: -1, z: -5}
+  m_LocalPosition: {x: -5, y: 2, z: -5}
   m_LocalScale: {x: 4, y: 4, z: 4}
   m_Children: []
   m_Father: {fileID: 55894498}
@@ -479,7 +479,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 578843176}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 5, y: -1, z: -5}
+  m_LocalPosition: {x: 5, y: 2, z: -5}
   m_LocalScale: {x: 4, y: 4, z: 4}
   m_Children: []
   m_Father: {fileID: 55894498}
@@ -794,7 +794,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 969872075}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 5, y: -1, z: 5}
+  m_LocalPosition: {x: 5, y: 2, z: 5}
   m_LocalScale: {x: 4, y: 4, z: 4}
   m_Children: []
   m_Father: {fileID: 55894498}
@@ -914,7 +914,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4932857489478259676, guid: a71a0c6b5d2509e43b618fd429f1aab1, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1.35
+      value: 1.1
       objectReference: {fileID: 0}
     - target: {fileID: 4932857489478259676, guid: a71a0c6b5d2509e43b618fd429f1aab1, type: 3}
       propertyPath: m_LocalPosition.z
@@ -1134,7 +1134,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2027205662}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -5, y: -1, z: 5}
+  m_LocalPosition: {x: -5, y: 2, z: 5}
   m_LocalScale: {x: 4, y: 4, z: 4}
   m_Children: []
   m_Father: {fileID: 55894498}
@@ -1403,10 +1403,6 @@ PrefabInstance:
     m_TransformParent: {fileID: 0}
     m_Modifications:
     - target: {fileID: -32395100340893717, guid: 994c2aff543867b4d8a7c275f41c8c00, type: 3}
-      propertyPath: whatIsPlayer.m_Bits
-      value: 128
-      objectReference: {fileID: 0}
-    - target: {fileID: -32395100340893717, guid: 994c2aff543867b4d8a7c275f41c8c00, type: 3}
       propertyPath: patrollingPoints.Array.data[0]
       value: 
       objectReference: {fileID: 657654796}
@@ -1436,11 +1432,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2118100150659765897, guid: 994c2aff543867b4d8a7c275f41c8c00, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1
+      value: 0.8333335
       objectReference: {fileID: 0}
     - target: {fileID: 2118100150659765897, guid: 994c2aff543867b4d8a7c275f41c8c00, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 5
+      value: -4.08
       objectReference: {fileID: 0}
     - target: {fileID: 2118100150659765897, guid: 994c2aff543867b4d8a7c275f41c8c00, type: 3}
       propertyPath: m_LocalRotation.w
